@@ -12,25 +12,22 @@ class Deal:
 	play_order = ['N', 'E', 'S', 'W']
 
 
-	def __init__(self, seed=None, deal=None, lead=None):
-		if seed is not None:
+	def __init__(self, seed=None, deal=None):
+		# Need either deal or seed
+		if deal:
+			self.original_deal = deal
+		else:
 			np.random.seed(seed)
 			self.original_deal = self.create_deal()
-			self.lead = self.original_deal['W'][0]
-			self.current_hands = copy.deepcopy(self.original_deal)
-			self.current_hands['W'].remove(self.lead)
-		else:
-			self.original_deal = deal
-			self.lead = lead
-			self.current_hands = copy.deepcopy(self.original_deal)
 
+		self.current_hands = copy.deepcopy(self.original_deal)
+		self.lead = None
 		self.contract = np.random.randint(0, 5)
-		# self.lead = np.random.choice(self.original_deal['W'])
 		self.trick_tally = 0
 		self.trick_no = 1
-		self.current_trick = [('W', self.lead)]
+		self.current_trick = []
 		self.current_turn_index = 0
-		self.card_no = 2
+		self.card_no = 1
 		self.decision_points = []
 		self.last_decisions = None
 		self.completed_tricks = []
@@ -40,8 +37,13 @@ class Deal:
 	def create_deal(self):
 		full_deal = np.random.choice(self.all_cards, len(self.all_cards), replace=False)
 		north, east, south, west = np.split(full_deal, 4)
-		deal_dict = {'N': list(north), 'E': list(east), 'S': list(south), 'W': list(west)}
+		deal_dict = {'N': set(north), 'E': set(east), 'S': set(south), 'W': set(west)}
 		return deal_dict
+
+	def make_lead(self):
+		card = list(self.current_hands['W'])[0]
+		self.play_card('W', card)
+		self.lead = card
 
 	def play_card(self, player, card):
 		self.current_trick.append((player, card))

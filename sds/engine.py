@@ -3,14 +3,12 @@ import copy
 import sys
 import time
 import itertools
-from displayer import Displayer
-from deal import Deal
-from decisions import Decisions
+from sds.displayer import Displayer
+from sds.deal import Deal
+from sds.decisions import Decisions
 
 class GameEngine:
-	def __init__(self, seed, deal, displayer, decisions):
-		np.random.seed(seed)
-		self.seed = seed
+	def __init__(self, deal, displayer, decisions):
 		self.deal = deal
 		self.displayer = displayer
 		self.decisions = decisions
@@ -85,16 +83,14 @@ class GameEngine:
 		# print(self.deal.completed_tricks)
 		# print(len(self.deal.full_history))
 
-	def possible_layouts(self, position, hand1, dummy, played=None):
-		# taken = set().union(hand1, dummy, played)
-		taken = hand1 + dummy + played
-
-		remaining = [i for i in self.deal.all_cards if i not in taken]
+	def generate_layouts(self, position, hand1, dummy, played=set([])):
+		taken = set().union(hand1, dummy, played)
+		remaining = set(self.deal.all_cards) - taken
 
 		comb = itertools.combinations(remaining, len(remaining) // 2)
 		unseen_layouts = []
 		for i in comb:
-			unseen_layouts.append([list(i), [j for j in remaining if j not in i]])
+			unseen_layouts.append([set(i), remaining - set(i)])
 
 		if position == 'NS':
 			all_layouts = [{'N': dummy, 'S': hand1, 'W': i, 'E': j} for i, j in unseen_layouts]
@@ -106,8 +102,6 @@ class GameEngine:
 			all_layouts = [{'N': dummy, 'S': i, 'W': hand1, 'E': j} for i, j in unseen_layouts]
 			# all_layouts_simple = [[dummy, j, i, hand1] for i,j in unseen_layouts]
 
-		# print(np.array(all_layouts_simple))
-		# sys.exit(1)
 		return all_layouts
 
 	def start(self):
@@ -115,13 +109,13 @@ class GameEngine:
 		dummy = self.deal.current_hands['N']
 
 		south = self.deal.current_hands['S']
-		all_layouts_NS = self.possible_layouts('NS', south, dummy, played)
+		all_layouts_NS = self.generate_layouts('NS', south, dummy, played)
 
 		east = self.deal.current_hands['E']
-		all_layouts_E = self.possible_layouts('E', east, dummy, played)
+		all_layouts_E = self.generate_layouts('E', east, dummy, played)
 
 		west = self.deal.current_hands['W']
-		all_layouts_W = self.possible_layouts('W', west, dummy, played)
+		all_layouts_W = self.generate_layouts('W', west, dummy, played)
 
 		# print(all_layouts_NS[0])
 		for deal in all_layouts_NS:
@@ -152,7 +146,7 @@ if __name__ == '__main__':
 
 	seed = 0
 	deal = Deal(seed=seed)
-	game = GameEngine(seed, deal, displayer, decisions)
+	game = GameEngine(deal, displayer, decisions)
 	game.start()
 	# game.play_to_leaf()
 	# game.play_to_all_leaves()

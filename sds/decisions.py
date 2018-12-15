@@ -1,5 +1,5 @@
 import sys
-from deal import Deal
+from sds.deal import Deal
 
 class Decisions:
 
@@ -28,7 +28,7 @@ class Decisions:
 			decision_point = False
 		# print("Valid Cards: ", valid_cards)
 
-		decision = valid_cards[0]
+		decision = valid_cards.pop()
 
 
 		# if old_decision:
