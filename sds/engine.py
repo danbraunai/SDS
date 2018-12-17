@@ -1,153 +1,158 @@
 import numpy as np
-import copy
 import sys
 import time
-import itertools
-from sds.displayer import Displayer
-from sds.deal import Deal
-from sds.decisions import Decisions
+
+from displayer import Displayer
+from deal import Deal
+from decisions import Decisions
+from simulator import Simulator
+from dds import DDS
 
 class GameEngine:
-	def __init__(self, deal, displayer, decisions):
-		self.deal = deal
+
+	def __init__(self, displayer, decisions, simulator):
 		self.displayer = displayer
 		self.decisions = decisions
+		self.simulator = simulator
 
-	def play_to_leaf(self):
+	def play_to_leaf(self, deal, sims=None, random=True):
+		"""
+		The sims argument contains the complete game trees of all possible layouts from the 
+		perspective of each player. When left blank, the player will just play randomly/naively
+		"""
 
 		# print("Lead: ", self.deal.lead)
-		# print(self.displayer.print_hands(self.deal.original_deal))
+		# print(self.displayer.print_hands(self.deal.original_hands))
 
 		# Play the lead automatically
 		# self.deal.play_card('W', self.current_hands['W'][0])
 
-		while self.deal.trick_no < 5:
-			current_player = self.deal.play_order[self.deal.current_turn_index]
-			current_hands = self.deal.current_hands
-			current_trick = self.deal.current_trick
-			current_card_no = self.deal.card_no
-			last_decisions = self.deal.last_decisions
+		while deal.trick_no < 5:
+			current_player = deal.play_order[deal.current_turn_index]
+			current_hands = deal.current_hands
+			current_trick = deal.current_trick
+			last_decisions = deal.last_decisions
 
-			decision, decision_point = (
+			decision, decision_point, sims = (
 				self.decisions.make_decision(
 					current_player, current_hands[current_player].copy(), current_trick, 
-					last_decisions))
+					last_decisions, deal.card_history_str, sims, random))
 
 			# if there were other potential cards to play, save the state of the game at this card.
 			if decision_point:
-				self.deal.save_position(
+				deal.save_position(
 					[decision], last_decisions, current_player, current_hands, current_trick)
 
 			# Once we've used the old decision to make a new decision, we don't need it anymore
-			self.deal.last_decisions = None
+			deal.last_decisions = None
 
-			self.deal.play_card(current_player, decision)
+			deal.play_card(current_player, decision)
 
-			if len(self.deal.current_trick) == 4:
-				self.deal.complete_trick()
-			else:
-				self.deal.next_player()
+			if len(deal.current_trick) == 4:
+				deal.complete_trick()
 
-		self.deal.save_leaf_node()
+		deal.save_leaf_node()
+		return deal
 
-	def play_to_all_leaves(self):
+	def play_to_all_leaves(self, deal):
 		# Play hand for the first time, reaching our first leaf node and noting down all other
 		# decision nodes in self.decision_points 
-		self.play_to_leaf()
+		deal = self.play_to_leaf(deal, random=True)
 		# While there are still unexplored areas of game tree, go back to most recent decision
 		# and make another one
-		# for decision in self.deal.decision_points:
-		# 	print(decision)
-		# print('\n')
 
-		while self.deal.decision_points:
-			# for decision in self.deal.decision_points:
-			# 	print(decision)
-			# print('\n')
-			last_decision_position = self.deal.decision_points[-1]
+		while deal.decision_points:
+			last_decision_position = deal.decision_points[-1]
 
 			# print(last_decisions)
-			# print("Decisions left = ", len(self.deal.decision_points), '\n')
-			# print(self.deal.decision_points)
+			# print("Decisions left = ", len(deal.decision_points), '\n')
+			# print(deal.decision_points)
 			# sys.exit(1)
-			self.deal.restore_position(last_decision_position)
+			deal.restore_position(last_decision_position)
 			# print(last_decisions_position)
 			# Play the hand again from a specific position, noting down the card number and card
 			# of the last decision made
-			self.play_to_leaf()
+			deal = self.play_to_leaf(deal, random=True)
 
-			# print(self.deal.completed_tricks)
-			# print(self.deal.full_history)
-			# sys.exit(1)
-		# print(self.deal.leaf_nodes)
-		# print(self.deal.completed_tricks)
-		# print(len(self.deal.full_history))
+		# print(deal.leaf_nodes)
+		# print(deal.completed_tricks)
 
-	def generate_layouts(self, position, hand1, dummy, played=set([])):
-		taken = set().union(hand1, dummy, played)
-		remaining = set(self.deal.all_cards) - taken
+		# print(np.array(deal.full_history))
+		# print(np.array(deal.full_history, dtype=[('x', str), ('y', int)]))
+		# print(np.array([('1.0', 2), ('3.0', 4)], dtype=[('x', f'U{self.max_str}'), ('y', int)]))
+		# sys.exit(1)
+		# game_tree_results = np.array(
+		# 	deal.full_history, dtype=[('hands', f'U{self.max_str}'), ('tricks', int)])
 
-		comb = itertools.combinations(remaining, len(remaining) // 2)
-		unseen_layouts = []
-		for i in comb:
-			unseen_layouts.append([set(i), remaining - set(i)])
+		return deal.full_history
 
-		if position == 'NS':
-			all_layouts = [{'N': dummy, 'S': hand1, 'W': i, 'E': j} for i, j in unseen_layouts]
-			# all_layouts_simple = [[dummy, j, hand1, i] for i,j in unseen_layouts]
-		elif position == 'E':
-			all_layouts = [{'N': dummy, 'S': j, 'W': i, 'E': hand1} for i, j in unseen_layouts]
-			# all_layouts_simple = [[dummy, hand1, j, i] for i,j in unseen_layouts]
-		elif position == 'W':
-			all_layouts = [{'N': dummy, 'S': i, 'W': hand1, 'E': j} for i, j in unseen_layouts]
-			# all_layouts_simple = [[dummy, j, i, hand1] for i,j in unseen_layouts]
+	def run_sims_position(self, player_layouts, lead):
+		"""
+		For each player (NS combined), we solve the full game tree for every possible
+		combination of hands that their opponents may have after the lead
+		"""
+		all_sims = []
 
-		return all_layouts
+		for position_layouts in player_layouts:
+			simulations = {}
+			for full_hands in position_layouts:
+				new_deal = Deal(deal=full_hands)
+				new_deal.make_lead(lead)
+				simulations.update(self.play_to_all_leaves(new_deal))
+
+			all_sims.append(simulations)
+
+		return all_sims
+
+	def run_dds(self):
+		deal1 = {'N': set(['C14', 'C11']), 'E': set(['C13', 'S13']), 
+			'S': set(['D14', 'H13']), 'W': set(['S14', 'S11'])}
+		deal2 = {'N': set(['C14', 'C13', 'C12', 'C11']), 'E': set(['S14', 'S13', 'H12', 'H13']), 
+		'S': set(['D14', 'D11', 'H14', 'H11']), 'W': set(['D12', 'D13', 'S12', 'S11'])}
+		# self.displayer.print_hands(deal2)
+
+		# Let south start this hand
+		# d = Deal(deal=deal2, current_turn_index=3)
+		for i in range(8,15):
+			d = Deal(seed=i, current_turn_index=3)
+			dds = DDS(d)
+			self.displayer.print_hands(d.original_hands)
+			start_time = time.time()
+			decision, utility = dds.get_decision()
+			print(f"DDS says playing {decision} will bring {utility} tricks")
+			print(f"Time Taken = {time.time() - start_time}")
 
 	def start(self):
-		played = [self.deal.lead]
-		dummy = self.deal.current_hands['N']
+		# start_time = time.time()
+		seed = 3
+		deal1 = Deal(seed=seed)
+		deal1.make_lead()
 
-		south = self.deal.current_hands['S']
-		all_layouts_NS = self.generate_layouts('NS', south, dummy, played)
+		# layouts_NS, layouts_E, layouts_W = self.simulator.find_layouts(deal1)
+		# all_sims = self.run_sims_position([layouts_NS, layouts_E, layouts_W], deal1.lead)
+		# self.simulator.save_sims(all_sims, seed)
 
-		east = self.deal.current_hands['E']
-		all_layouts_E = self.generate_layouts('E', east, dummy, played)
-
-		west = self.deal.current_hands['W']
-		all_layouts_W = self.generate_layouts('W', west, dummy, played)
-
-		# print(all_layouts_NS[0])
-		for deal in all_layouts_NS:
-			self.deal = Deal(deal=deal, lead=played[0])
-			# print(self.deal.original_deal)
-			# print(self.deal.lead)
-			# sys.exit(1)
-			self.play_to_all_leaves()
-			print("Found leaf: ", self.deal.leaf_nodes)
-		sys.exit(1)
-
-		for i in [all_layouts_NS, all_layouts_W, all_layouts_E]:
-			print(len(i))
-
-		# This is kind of silly, only one layout where they are all the same (the true layout)
-		# unique_layouts = all_layouts_NS.copy()
-		# unique_layouts += [i for i in all_layouts_E if i not in unique_layouts]
-		# unique_layouts += [i for i in all_layouts_W if i not in unique_layouts]
-		# print(len(unique_layouts))
+		sims = self.simulator.load_sims(seed)
+		# history = self.play_to_all_leaves(deal1)
+		# print(history)
 		# sys.exit(1)
+
+		d = self.play_to_leaf(deal1, sims, random=False)
+		print(self.displayer.print_hands(d.original_hands))
+		# print(d.full_history)
+
 
 
 if __name__ == '__main__':
 
 	displayer = Displayer()
 	decisions = Decisions()
-	start_time = time.time()
+	simulator = Simulator()
+	# start_time = time.time()
 
-	seed = 0
-	deal = Deal(seed=seed)
-	game = GameEngine(deal, displayer, decisions)
-	game.start()
+	game = GameEngine(displayer, decisions, simulator)
+	# game.start()
+	game.run_dds()
 	# game.play_to_leaf()
 	# game.play_to_all_leaves()
 

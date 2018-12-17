@@ -31,10 +31,17 @@ class Displayer:
 		west_clubs = [i for i in west if 'C' in i]
 		west_zipped = list(itertools.zip_longest(
 			west_spades, west_hearts, west_diamonds, west_clubs, fillvalue='   '))
-		ew_zip = list(zip(west_zipped, east_zipped))
+
+		ew_zip = list(itertools.zip_longest(west_zipped, east_zipped))
+
 		print('\n')
 		for row in ew_zip:
-			print(' '.join(row[0]), '\t\t', ' '.join(row[1]))
+			if not row[0]:
+				print('\t'*4, ' '.join(row[1]))
+			elif not row[1]:
+				print(' '.join(row[0]), '\t'*4)
+			else:
+				print(' '.join(row[0]), '\t\t', ' '.join(row[1]))
 
 		south_spades = [i for i in south if 'S' in i]
 		south_hearts = [i for i in south if 'H' in i]
