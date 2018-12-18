@@ -1,6 +1,8 @@
 import itertools
 import json
 import numpy as np
+import sys
+
 
 class Simulator():
 
@@ -9,8 +11,10 @@ class Simulator():
 		# Equal to the number of cards in the deck times 3 (one for suit, two for the card)
 		self.max_str = 16 * 3
 
-	def generate_layouts(self, position, hand1, dummy, all_cards, lead=set([])):
-		taken = set().union(hand1, dummy, lead)
+	# def sort_hand(self, hand):
+		
+	def generate_layouts(self, position, hand, dummy, all_cards, played):
+		taken = set().union(hand, dummy, played)
 		remaining = set(all_cards) - taken
 
 		comb = itertools.combinations(remaining, len(remaining) // 2)
@@ -19,39 +23,75 @@ class Simulator():
 			unseen_layouts.append([set(i), remaining - set(i)])
 
 		if position == 'NS':
-			all_layouts = [{'N': dummy, 'S': hand1, 'W': i, 'E': j} for i, j in unseen_layouts]
-			# all_layouts_simple = [[dummy, j, hand1, i] for i,j in unseen_layouts]
+			all_layouts = [{'N': dummy, 'S': hand, 'W': i, 'E': j} for i, j in unseen_layouts]
+			# all_layouts_simple = [[dummy, j, hand, i] for i,j in unseen_layouts]
 		elif position == 'E':
-			all_layouts = [{'N': dummy, 'S': j, 'W': i, 'E': hand1} for i, j in unseen_layouts]
-			# all_layouts_simple = [[dummy, hand1, j, i] for i,j in unseen_layouts]
+			all_layouts = [{'N': dummy, 'S': j, 'W': i, 'E': hand} for i, j in unseen_layouts]
+			# all_layouts_simple = [[dummy, hand, j, i] for i,j in unseen_layouts]
 		elif position == 'W':
-			all_layouts = [{'N': dummy, 'S': i, 'W': hand1, 'E': j} for i, j in unseen_layouts]
-			# all_layouts_simple = [[dummy, j, i, hand1] for i,j in unseen_layouts]
+			all_layouts = [{'N': dummy, 'S': i, 'W': hand, 'E': j} for i, j in unseen_layouts]
+			# all_layouts_simple = [[dummy, j, i, hand] for i,j in unseen_layouts]
 
 		return all_layouts
 
-	def find_layouts(self, deal):
-		""" 
-		This currently only works for deals (after the lead). Not too much restructure
-		needed to be compatible with finding layouts at any point
+	def generate_layouts_lead(self, hand, all_cards):
 		"""
-		# played = set(
-		# 	[deal.card_history_str[i:i+3] for i in range(0, len(deal.card_history_str), 3)])
+		Generates all possible layouts given only one hand (the leaders hand). Note, the number
+		of layouts for a n card game is (n-n/4)C(n/4) * (n-2n/4)C(n/4).
+		For 16 card game - layouts = 12C4 * 8C4 = 34,650.
+		For 20 card game - layouts = 15C5 * 10C5 = 756,756.
+		For 24 card game - layouts = 18C6 * 12C6 = 17,153,136.
+		For 52 card game - layouts = 39C13 * 26C13 = 8e9 * 1e7 = 8.4e16
+		"""
+		cards_remaining = set(all_cards) - hand
 
-		lead = [deal.lead]
+		# print("My hand: ", hand)
+		# print("remaining cards:", cards_remaining)
+		unseen_layouts = []
+		comb = itertools.combinations(cards_remaining, int(len(cards_remaining) / 3))
+		for i in comb:
+			current_remaining = set(cards_remaining) - set(i)
+			comb_remaining = itertools.combinations(
+				current_remaining, int(len(current_remaining) / 2))
+
+			for j in comb_remaining:
+				layout = [set(i), set(j), set(cards_remaining) - set(i).union(set(j))]
+				# layout = [list(i), list(j), [k for k in cards_remaining if k not in i + j]]
+				# print(layout)
+				# sys.exit(1)
+				unseen_layouts.append(layout)
+
+		all_layouts = [{'N': i, 'S': j, 'W': hand, 'E': k} for i, j, k in unseen_layouts]
+
+		return all_layouts
+
+	def find_layouts(self, deal, player, lead=False):
+		""" 
+		Capable of find layouts at any point in hand, including the lead (when lead=True)
+		"""
+
+
+		if lead:
+			all_layouts = self.generate_layouts_lead(deal.current_hands['W'], deal.all_cards)
+			return all_layouts
+
+		played = set(deal.all_cards) - set().union(*deal.current_hands.values())
 
 		dummy = deal.current_hands['N']
 
-		south = deal.current_hands['S']
-		all_layouts_NS = self.generate_layouts('NS', south, dummy, deal.all_cards, lead)
+		if player in ['N', 'S']:
+			south = deal.current_hands['S']
+			all_layouts = self.generate_layouts('NS', south, dummy, deal.all_cards, played)
 
-		east = deal.current_hands['E']
-		all_layouts_E = self.generate_layouts('E', east, dummy, deal.all_cards, lead)
+		elif player == 'E':
+			east = deal.current_hands['E']
+			all_layouts = self.generate_layouts('E', east, dummy, deal.all_cards, played)
 
-		west = deal.current_hands['W']
-		all_layouts_W = self.generate_layouts('W', west, dummy, deal.all_cards, lead)
+		elif player == 'W':
+			west = deal.current_hands['W']
+			all_layouts = self.generate_layouts('W', west, dummy, deal.all_cards, played)
 
-		return all_layouts_NS, all_layouts_E, all_layouts_W
+		return all_layouts
 
 
 	def save_sims(self, all_sims, seed):

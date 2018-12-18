@@ -7,10 +7,6 @@ class DDS:
 
     def __init__(self, deal):
         self.deal = deal
-        # self.position = position
-        # self.turn_index
-        # self.current_hands = copy.deepcopy(self.position)
-
 
     def get_valid_moves(self, player, trick):
         hand = self.deal.current_hands[player]
@@ -33,13 +29,36 @@ class DDS:
     # finds child with highest utility
     def get_decision(self):
         depth = 0
-        # North and south wants to maximize tricks, E and W want to minimize
-        if self.deal.play_order[self.deal.current_turn_index] in ['N', 'S']:
-            move, utility = self.maximize(depth, -np.inf, np.inf)
-        else:
-            move, utility = self.minimize(depth, -np.inf, np.inf)
+        player = self.deal.play_order[self.deal.current_turn_index]
+        current_hand = self.deal.current_hands[player].copy()
 
-        return move, utility
+        # Need to save the state of deal as it will change when we explore each possible action 
+        current_position = self.deal.save_position_dds()
+        valid_moves = self.get_valid_moves(player, self.deal.current_trick)
+
+        utility_dict = {}
+        # Play each card in the hand, and evaluate utility after that
+        for card in valid_moves:
+
+            # Need to save the state of deal, since we will be exploring leaves and changing it
+            current_position = self.deal.save_position_dds()
+
+            self.deal.play_card_dds(player, card)
+
+            if player in ['N', 'S']:
+                # It is now E or W's turn, they want to minimize 
+                _, utility = self.minimize(depth, -np.inf, np.inf)
+            else:
+                # It is now N or S's turn they want to mazimize
+                _, utility = self.maximize(depth, -np.inf, np.inf)
+
+            utility_dict[card] = utility
+
+            # restore the deal object to same state as before playing the first card
+            self.deal.restore_position_dds(current_position)            
+
+        return utility_dict
+
     # @profile
     def maximize(self, depth, alpha, beta):
         depth += 1
@@ -59,9 +78,6 @@ class DDS:
         valid_moves = self.get_valid_moves(current_player, self.deal.current_trick)
 
         for child in valid_moves:
-            # This is much faster than doing a deep copy, probably can do much better still
-            current_hand_copy = [self.deal.current_hands[i].copy() for i in self.deal.play_order]
-
             # Need to save the state of deal, since we will be exploring leaves and changing it
             current_position = self.deal.save_position_dds()
 
@@ -70,30 +86,24 @@ class DDS:
             #     f"{self.deal.current_hands[current_player]}\n")
             self.deal.play_card_dds(current_player, child)
 
-            if len(self.deal.current_trick) == 4:
-                self.deal.complete_trick()
-
-            # print(child)
-            # print(current_position)
-            # print(self.deal.current_hands)
-            # sys.exit(1)
-            (_, utility) = self.minimize(depth, alpha, beta)
+            # If still N or S turn (they won the trick), maximize again, otherwise, minimize
+            if self.deal.current_turn_index in [1, 3]:
+                (_, utility) = self.maximize(depth, alpha, beta)
+            else:
+                (_, utility) = self.minimize(depth, alpha, beta)
 
             if utility > max_utility:
                 (max_child, max_utility) = (child, utility)
-                # print(max_child, max_utility)
 
             if max_utility >= beta:
+                self.deal.restore_position_dds(current_position)
                 pass
             if max_utility > alpha:
                 alpha = max_utility
 
             # restore the deal object to same state as before exploring the child
             self.deal.restore_position_dds(current_position)
-            
-            self.deal.current_hands = {
-                'N': current_hand_copy[1], 'E': current_hand_copy[2], 
-                'S': current_hand_copy[3], 'W': current_hand_copy[0]}
+
         depth -= 1
 
         return (max_child, max_utility)
@@ -103,6 +113,7 @@ class DDS:
         current_player = self.deal.play_order[self.deal.current_turn_index]
 
         cards_left = set().union(*self.deal.current_hands.values())
+
 
         if len(cards_left) == 4:
             self.deal.play_last_trick()
@@ -116,8 +127,6 @@ class DDS:
         valid_moves = self.get_valid_moves(current_player, self.deal.current_trick)
 
         for child in valid_moves:
-            current_hand_copy = [self.deal.current_hands[i].copy() for i in self.deal.play_order]
-
             # Need to save the state of deal, since we will be exploring leaves and changing it
             current_position = self.deal.save_position_dds()
             # print(
@@ -125,26 +134,23 @@ class DDS:
             #     f"{self.deal.current_hands[current_player]}\n")
             self.deal.play_card_dds(current_player, child)
 
-            if len(self.deal.current_trick) == 4:
-                self.deal.complete_trick()
-
-            (_, utility) = self.maximize(depth, alpha, beta)
+            # If still E or W turn (they won the trick), minimize again, otherwise, minimize
+            if self.deal.current_turn_index in [1, 3]:
+                (_, utility) = self.maximize(depth, alpha, beta)
+            else:
+                (_, utility) = self.minimize(depth, alpha, beta)
 
             if utility < min_utility:
                 (min_child, min_utility) = (child, utility)
 
             if min_utility <= alpha:
-                pass
-                # self.deal.restore_position_dds(current_position)
-                # break
+                self.deal.restore_position_dds(current_position)
+                break
             if min_utility < beta:
                 beta = min_utility
 
             # restore the deal object to same state as before exploring the child
             self.deal.restore_position_dds(current_position)
-            
-            self.deal.current_hands = {
-                'N': current_hand_copy[1], 'E': current_hand_copy[2], 
-                'S': current_hand_copy[3], 'W': current_hand_copy[0]}
+
         depth -= 1
         return (min_child, min_utility)        

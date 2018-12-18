@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 import itertools
+from deal import Deal
 
 class Displayer:
 
@@ -54,5 +55,11 @@ class Displayer:
 			print('\t\t', ' '.join(row))
 		print('\n')
 
+	def print_deal_info(self, d):
+		# print(d.original_hands)
 
+		print("Current hands:",d.current_hands)
+		print("Current trick tally:", d.trick_tally)
+		print("Current trick:", d.current_trick)
+		print("Current turn:", d.play_order[d.current_turn_index])
 
