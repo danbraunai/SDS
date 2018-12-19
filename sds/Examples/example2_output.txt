@@ -1,0 +1,23 @@
+
+
+				            C14
+				            C13
+				            C12
+
+S12     D12    					S14 H12        
+S11            					S13 H13        
+
+				    H14 D14    
+				    H11 D11    
+
+Trumps: None
+Current trick: [('W', 'D13'), ('N', 'C11')]
+E's turn
+35 possible layouts
+
+H12 1.4285714285714286
+H13 1.4285714285714286
+S13 1.4
+S14 1.4
+
+Time Taken = 0.14962315559387207
