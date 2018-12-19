@@ -16,18 +16,18 @@ along with other methods which will be used to create the ultimate bridge AI.
 
 To run the SDS:
 Clone the repository.
-Modfiy (or create new) files in sds/Examples to setup the position you want to solve.
-Run the engine.py file with your example as a cmd line argument (e.g. python engine.py example1)
-The output of the SDS will be saved to sds/Examples/example1_output.txt
-Alternatively, tinker with the engine.py file and run whatever you like
+- Modfiy (or create new) files in sds/Examples to setup the position you want to solve.
+- Run the engine.py file with your example as a cmd line argument (e.g. python engine.py example1)
+- The output of the SDS will be saved to sds/Examples/example1_output.txt
+- Alternatively, tinker with the engine.py file and run whatever you like
 
 The article 'Inferences from a SDS.ipynb' inside sds/ shows some fun I had with this, and illustrates something to think about for future work
 
 The main code sits in sds:
-displayer.py - Just used to print a hand to terminal or text file
-deal.py - Creates a bridge deal, and maintains the state of a deal throughout the solver
-simulator.py - Generates possible layouts given a player's cards (and the dummy, unless we want to run SDS on the lead)
-dds.py - Contains the minimax algorithm
-engine.py - A module used to play around with the solver
+- displayer.py - Just used to print a hand to terminal or text file
+- deal.py - Creates a bridge deal, and maintains the state of a deal throughout the solver
+- simulator.py - Generates possible layouts given a player's cards (and the dummy, unless we want to run SDS on the lead)
+- dds.py - Contains the minimax algorithm
+- engine.py - A module used to play around with the solver
 
 The 'deprecated' folder contains some code that is deprecated or not currently tweaked well enough to add to the main source files.
